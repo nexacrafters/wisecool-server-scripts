@@ -52,16 +52,19 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
     lsb-release
 
 # ============================================
-# 3. Install Docker (if not present)
+# 3. Docker (installed by Coolify)
 # ============================================
-echo "[3/8] Setting up Docker..."
+echo "[3/8] Checking Docker..."
 if ! command -v docker &> /dev/null; then
-    curl -fsSL https://get.docker.com | sh
-    systemctl enable docker
-    systemctl start docker
-    echo "  -> Docker installed"
+    echo "  -> Docker not found. Install Coolify first:"
+    echo "     curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash"
+    echo "  -> Then re-run this bootstrap script"
+    echo ""
+    echo "  -> Or install Docker standalone:"
+    echo "     curl -fsSL https://get.docker.com | sh"
+    exit 1
 else
-    echo "  -> Docker already installed"
+    echo "  -> Docker found ($(docker --version | cut -d' ' -f3 | tr -d ','))"
 fi
 
 # ============================================

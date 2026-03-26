@@ -2,10 +2,16 @@
 
 Complete server hardening, monitoring, and maintenance scripts for Wisecool infrastructure.
 
-## Fresh Server Setup (One Command)
+## Fresh Server Setup
 
 On a fresh Ubuntu 22.04+ server:
 
+### Step 1: Install Coolify (sets up Docker + Traefik)
+```bash
+curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash
+```
+
+### Step 2: Run Bootstrap (security + monitoring)
 ```bash
 curl -sSL https://raw.githubusercontent.com/nexacrafters/wisecool-server-scripts/main/bootstrap.sh | sudo bash
 ```
@@ -15,7 +21,7 @@ Or with custom SSH port and swap:
 SSH_PORT=22222 SWAP_SIZE=8 curl -sSL https://raw.githubusercontent.com/nexacrafters/wisecool-server-scripts/main/bootstrap.sh | sudo bash
 ```
 
-This installs **everything**: Docker, fail2ban, UFW, swap, all security configs, and monitoring scripts.
+This sets up: fail2ban, UFW, SSH hardening, kernel hardening, swap, and all monitoring scripts.
 
 ## Existing Server Install
 
@@ -134,11 +140,8 @@ sudo ./scripts/setup-swap.sh 4  # Creates 4GB swap
 ## Requirements
 
 - Ubuntu 22.04+ / Debian 11+
-- Docker with Coolify
-- fail2ban
-- ufw
-- curl, python3
-- Resend.com account
+- Coolify (installs Docker + Traefik proxy)
+- Resend.com account (for email alerts)
 
 ## Uninstall
 
