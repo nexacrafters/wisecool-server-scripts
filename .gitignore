@@ -1,0 +1,9 @@
+# Ignore actual config with secrets
+config/security-alerts.conf
+
+# Logs
+*.log
+
+# Temp files
+*.tmp
+*.bak

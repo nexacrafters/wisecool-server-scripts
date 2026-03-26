@@ -1,0 +1,17 @@
+# Wisecool Server Security Alert Configuration
+# Copy this to /etc/security-alerts/config and fill in your values
+
+# Resend API key for sending email alerts
+RESEND_API_KEY="your_resend_api_key_here"
+
+# Comma-separated list of email addresses to receive alerts
+ALERT_EMAILS="admin@example.com,devops@example.com"
+
+# From email address (must be verified in Resend)
+FROM_EMAIL="security@yourdomain.com"
+
+# Server name for alert identification
+SERVER_NAME="Wisecool Production"
+
+# Coolify management server IP (whitelisted from fail2ban)
+COOLIFY_IP="your_coolify_server_ip"
