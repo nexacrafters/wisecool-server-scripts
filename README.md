@@ -13,8 +13,8 @@ Monitoring, security, and maintenance scripts for Wisecool infrastructure server
 ## Quick Install
 
 ```bash
-git clone https://github.com/wisecool-tn/server-scripts.git
-cd server-scripts
+git clone https://github.com/nexacrafters/wisecool-server-scripts.git
+cd wisecool-server-scripts
 sudo ./install.sh
 ```
 
