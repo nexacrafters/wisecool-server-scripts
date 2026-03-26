@@ -97,8 +97,26 @@ echo "[8/9] Setting up cron jobs..."
 echo "* * * * * $INSTALL_DIR/check-traefik-docker.sh") | crontab -
 echo "  -> Traefik monitor cron installed (every minute)"
 
+# Install sysctl hardening
+echo "[9/11] Installing kernel security settings..."
+if [ ! -f /etc/sysctl.d/99-enterprise-security.conf ]; then
+    cp "$SCRIPT_DIR/sysctl/99-enterprise-security.conf" /etc/sysctl.d/
+    sysctl --system > /dev/null 2>&1
+    echo "  -> Kernel hardening applied"
+else
+    echo "  -> Sysctl config exists, skipping"
+fi
+
+# Setup swap if not exists
+echo "[10/11] Checking swap..."
+if ! swapon --show | grep -q "/swapfile"; then
+    echo "  -> No swap found. Run: $SCRIPT_DIR/scripts/setup-swap.sh 4"
+else
+    echo "  -> Swap already configured"
+fi
+
 # Apply firewall rules now
-echo "[9/9] Applying Docker firewall rules..."
+echo "[11/11] Applying Docker firewall rules..."
 "$INSTALL_DIR/docker-firewall.sh" 2>/dev/null || echo "  -> Warning: Run after Docker starts"
 
 echo ""

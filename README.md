@@ -2,7 +2,22 @@
 
 Complete server hardening, monitoring, and maintenance scripts for Wisecool infrastructure.
 
-## Quick Install
+## Fresh Server Setup (One Command)
+
+On a fresh Ubuntu 22.04+ server:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/nexacrafters/wisecool-server-scripts/main/bootstrap.sh | sudo bash
+```
+
+Or with custom SSH port and swap:
+```bash
+SSH_PORT=22222 SWAP_SIZE=8 curl -sSL https://raw.githubusercontent.com/nexacrafters/wisecool-server-scripts/main/bootstrap.sh | sudo bash
+```
+
+This installs **everything**: Docker, fail2ban, UFW, swap, all security configs, and monitoring scripts.
+
+## Existing Server Install
 
 ```bash
 git clone https://github.com/nexacrafters/wisecool-server-scripts.git
@@ -42,7 +57,10 @@ sudo sshd -t && sudo systemctl reload sshd  # Apply SSH changes
 
 - `fail2ban/jail.local` - SSH brute force protection
 - `ssh/99-hardening.conf` - SSH hardening (strong ciphers, rate limiting)
+- `sysctl/99-enterprise-security.conf` - Kernel hardening (network, memory protection)
+- `ufw/setup-ufw.sh` - Firewall setup script
 - `logrotate/enterprise-security` - Log retention (52 weeks auth logs)
+- `scripts/setup-swap.sh` - Swap file setup (4GB default)
 
 ## Security Alerts
 
@@ -97,6 +115,21 @@ The `docker-firewall.sh` blocks external access to:
 - Traefik dashboard: 8080
 
 Only internal Docker containers can access these ports.
+
+## Kernel Hardening (sysctl)
+
+The `sysctl/99-enterprise-security.conf` includes:
+
+- **Network security**: SYN flood protection, ICMP hardening, IP spoofing prevention
+- **Memory protection**: ASLR, restricted kernel pointers, symlink protection
+- **Performance tuning**: Optimized TCP buffers, connection limits, file handles
+- **Docker optimization**: Increased inotify limits
+
+## Swap Setup
+
+```bash
+sudo ./scripts/setup-swap.sh 4  # Creates 4GB swap
+```
 
 ## Requirements
 
