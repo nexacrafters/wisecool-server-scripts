@@ -1,0 +1,12 @@
+[Unit]
+Description=Docker Firewall Rules - Block External Database Access
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/docker-firewall.sh
+
+[Install]
+WantedBy=multi-user.target

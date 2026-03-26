@@ -1,0 +1,9 @@
+[Unit]
+Description=Security Monitor - Wisecool
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/security-monitor.sh
+StandardOutput=append:/var/log/security-monitor.log
+StandardError=append:/var/log/security-monitor.log

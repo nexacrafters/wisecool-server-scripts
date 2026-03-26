@@ -1,0 +1,6 @@
+[Unit]
+Description=Daily Security Audit
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/security-audit.sh

@@ -1,0 +1,13 @@
+[Unit]
+Description=Auto-prune Docker when usage exceeds threshold
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/docker-auto-prune.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

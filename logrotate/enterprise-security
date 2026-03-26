@@ -1,0 +1,52 @@
+# Enterprise Security Log Rotation
+# Copy to /etc/logrotate.d/enterprise-security
+
+# Auth logs - keep longer for security audit
+/var/log/auth.log {
+    weekly
+    rotate 52
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 640 root adm
+}
+
+# Fail2ban logs
+/var/log/fail2ban.log {
+    weekly
+    rotate 52
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 640 root adm
+    postrotate
+        fail2ban-client flushlogs >/dev/null 2>&1 || true
+    endscript
+}
+
+# UFW logs
+/var/log/ufw.log {
+    weekly
+    rotate 26
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 640 root adm
+}
+
+# Security monitoring logs
+/var/log/security-alerts.log
+/var/log/security-audit.log
+/var/log/security-monitor.log
+/var/log/traefik-monitor.log {
+    weekly
+    rotate 12
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 640 root root
+}

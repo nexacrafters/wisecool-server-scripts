@@ -1,0 +1,34 @@
+# Wisecool Server Fail2Ban Configuration
+# Copy to /etc/fail2ban/jail.local
+
+[DEFAULT]
+# IPs to never ban - ADD YOUR IPS HERE
+# 127.0.0.1/8 ::1 = localhost
+# Add your home IP and Coolify server IP
+ignoreip = 127.0.0.1/8 ::1 YOUR_HOME_IP COOLIFY_SERVER_IP
+bantime = 1h
+findtime = 10m
+maxretry = 3
+
+[sshd]
+enabled = true
+port = 49317  # Change to your SSH port
+filter = sshd
+logpath = /var/log/auth.log
+maxretry = 3
+bantime = 24h
+
+[sshd-aggressive]
+enabled = true
+port = 49317  # Change to your SSH port
+filter = sshd[mode=aggressive]
+logpath = /var/log/auth.log
+maxretry = 2
+bantime = 48h
+
+# Ban repeat offenders for 1 week
+[recidive]
+enabled = true
+bantime = 1w
+findtime = 1d
+maxretry = 3
