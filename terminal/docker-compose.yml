@@ -2,8 +2,6 @@
 # This container proxies to the host's ttyd server
 # Deploy via Coolify for automatic SSL/TLS
 
-version: '3.8'
-
 services:
   terminal-proxy:
     image: nginx:alpine
