@@ -1,0 +1,30 @@
+# Wisecool Terminal Proxy Container
+# This container proxies to the host's ttyd server
+# Deploy via Coolify for automatic SSL/TLS
+
+version: '3.8'
+
+services:
+  terminal-proxy:
+    image: nginx:alpine
+    container_name: wisecool-terminal-proxy
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.terminal.rule=Host(`terminal.wisecool.tn`)"
+      - "traefik.http.routers.terminal.entrypoints=https"
+      - "traefik.http.routers.terminal.tls=true"
+      - "traefik.http.routers.terminal.tls.certresolver=letsencrypt"
+      - "traefik.http.services.terminal.loadbalancer.server.port=80"
+      # Enable WebSocket support
+      - "traefik.http.middlewares.terminal-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
+    networks:
+      - coolify
+
+networks:
+  coolify:
+    external: true
