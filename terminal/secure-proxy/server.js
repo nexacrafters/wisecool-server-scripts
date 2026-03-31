@@ -128,8 +128,11 @@ function getCorsHeaders(origin) {
   };
 }
 
-// In-memory session store (token -> {authHeader, validUntil})
+// In-memory session store (token -> {authHeader, validUntil, wsConnected})
 const sessionStore = new Map();
+
+// Track active WebSocket connections by token
+const activeConnections = new Map(); // token -> Set of sockets
 
 // Clean up expired sessions every 5 minutes
 setInterval(() => {
@@ -137,6 +140,7 @@ setInterval(() => {
   for (const [key, session] of sessionStore.entries()) {
     if (session.validUntil < now) {
       sessionStore.delete(key);
+      activeConnections.delete(key);
     }
   }
 }, 5 * 60 * 1000);
@@ -252,6 +256,42 @@ server.on('upgrade', async (req, socket, head) => {
   }
 
   console.log('[AUTH] WebSocket session valid, upgrading');
+
+  // Track this connection
+  if (token) {
+    if (!activeConnections.has(token)) {
+      activeConnections.set(token, new Set());
+    }
+    activeConnections.get(token).add(socket);
+
+    // When socket closes, invalidate the session token (one-time use)
+    socket.on('close', () => {
+      console.log(`[WS CLOSE] Connection closed for token: ${token.substring(0, 8)}...`);
+      const connections = activeConnections.get(token);
+      if (connections) {
+        connections.delete(socket);
+        // If no more active connections for this token, invalidate it
+        if (connections.size === 0) {
+          console.log(`[SESSION] Invalidating session after disconnect: ${token.substring(0, 8)}...`);
+          sessionStore.delete(token);
+          activeConnections.delete(token);
+        }
+      }
+    });
+
+    socket.on('error', () => {
+      // Handle socket errors - same as close
+      const connections = activeConnections.get(token);
+      if (connections) {
+        connections.delete(socket);
+        if (connections.size === 0) {
+          sessionStore.delete(token);
+          activeConnections.delete(token);
+        }
+      }
+    });
+  }
+
   proxy.ws(req, socket, head);
 });
 
