@@ -19,61 +19,76 @@ const proxy = httpProxy.createProxyServer({
   changeOrigin: true,
 });
 
+// Allowed origins for iframe embedding
+const ALLOWED_ORIGINS = [
+  'https://admin.wisecool.tn',
+  'https://instructor.wisecool.tn',
+  'https://app.wisecool.tn',
+];
+
 proxy.on('error', (err, req, res) => {
   console.error('[PROXY ERROR]', err.message);
   if (res.writeHead) {
-    res.writeHead(502, { 'Content-Type': 'application/json' });
+    const origin = req.headers.origin || '';
+    const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+    res.writeHead(502, {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': allowedOrigin,
+      'Access-Control-Allow-Credentials': 'true',
+      'Content-Security-Policy': `frame-ancestors ${ALLOWED_ORIGINS.join(' ')}`,
+    });
     res.end(JSON.stringify({ error: 'Terminal server unavailable' }));
   }
 });
 
-// Validate session token against API
+// Add headers to proxied responses for CORS and iframe embedding
+proxy.on('proxyRes', (proxyRes, req, res) => {
+  const origin = req.headers.origin || '';
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+
+  proxyRes.headers['access-control-allow-origin'] = allowedOrigin;
+  proxyRes.headers['access-control-allow-credentials'] = 'true';
+  proxyRes.headers['access-control-allow-methods'] = 'GET, POST, OPTIONS';
+  proxyRes.headers['access-control-allow-headers'] = 'X-Terminal-Session, Authorization, Content-Type';
+  // Allow iframe embedding from allowed origins
+  proxyRes.headers['content-security-policy'] = `frame-ancestors ${ALLOWED_ORIGINS.join(' ')}`;
+  // Remove X-Frame-Options if present (CSP frame-ancestors takes precedence)
+  delete proxyRes.headers['x-frame-options'];
+});
+
+// Validate session token against API using fetch
 async function validateSession(token, authHeader) {
-  return new Promise((resolve) => {
-    if (!token) {
-      resolve(false);
-      return;
-    }
+  if (!token) {
+    return false;
+  }
 
-    const url = new URL(`${API_URL}/security/terminal/check-session/`);
+  try {
+    const url = `${API_URL}/security/terminal/check-session/`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
 
-    const options = {
-      hostname: url.hostname,
-      port: url.port || 443,
-      path: url.pathname,
+    const response = await fetch(url, {
       method: 'GET',
       headers: {
         'X-Terminal-Session': token,
         'Authorization': authHeader || '',
       },
-      rejectUnauthorized: false, // For internal requests
-    };
-
-    const req = https.request(options, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          const json = JSON.parse(data);
-          resolve(json.authenticated === true);
-        } catch {
-          resolve(false);
-        }
-      });
+      signal: controller.signal,
     });
 
-    req.on('error', (err) => {
-      console.error('[AUTH ERROR]', err.message);
-      resolve(false);
-    });
+    clearTimeout(timeout);
 
-    req.setTimeout(5000, () => {
-      req.destroy();
-      resolve(false);
-    });
+    if (!response.ok) {
+      console.log(`[AUTH] API returned ${response.status}`);
+      return false;
+    }
 
-    req.end();
-  });
+    const data = await response.json();
+    return data.authenticated === true;
+  } catch (err) {
+    console.error('[AUTH ERROR]', err.message);
+    return false;
+  }
 }
 
 // Extract token from URL query or cookie
@@ -101,21 +116,58 @@ function getAuthHeader(req) {
   return req.headers['authorization'];
 }
 
+// Helper to get CORS/frame headers
+function getCorsHeaders(origin) {
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Credentials': 'true',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'X-Terminal-Session, Authorization, Content-Type',
+    'Content-Security-Policy': `frame-ancestors ${ALLOWED_ORIGINS.join(' ')}`,
+  };
+}
+
+// In-memory session store (token -> {authHeader, validUntil})
+const sessionStore = new Map();
+
+// Clean up expired sessions every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, session] of sessionStore.entries()) {
+    if (session.validUntil < now) {
+      sessionStore.delete(key);
+    }
+  }
+}, 5 * 60 * 1000);
+
 // HTTP server
 const server = http.createServer(async (req, res) => {
+  const origin = req.headers.origin || '';
+  const corsHeaders = getCorsHeaders(origin);
+
   // Health check
   if (req.url === '/health') {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.writeHead(200, {
+      'Content-Type': 'text/plain',
+      ...corsHeaders
+    });
     res.end('OK');
     return;
   }
 
   // CORS preflight
   if (req.method === 'OPTIONS') {
+    res.writeHead(200, corsHeaders);
+    res.end();
+    return;
+  }
+
+  // Handle HEAD requests - ttyd doesn't support them well
+  if (req.method === 'HEAD') {
     res.writeHead(200, {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'X-Terminal-Session, Authorization, Content-Type',
+      'Content-Type': 'text/html',
+      ...corsHeaders
     });
     res.end();
     return;
@@ -126,11 +178,32 @@ const server = http.createServer(async (req, res) => {
 
   console.log(`[REQUEST] ${req.method} ${req.url} - Token: ${token ? 'present' : 'missing'}`);
 
-  const isValid = await validateSession(token, authHeader);
+  // Check if we have a valid cached session for this token
+  let isValid = false;
+  const cachedSession = token ? sessionStore.get(token) : null;
+
+  if (cachedSession && cachedSession.validUntil > Date.now()) {
+    isValid = true;
+    console.log('[AUTH] Using cached session');
+  } else {
+    // Validate against API
+    isValid = await validateSession(token, authHeader);
+
+    // Cache valid sessions for 30 minutes
+    if (isValid && token) {
+      sessionStore.set(token, {
+        authHeader,
+        validUntil: Date.now() + 30 * 60 * 1000
+      });
+    }
+  }
 
   if (!isValid) {
     console.log('[AUTH] Session invalid or expired');
-    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.writeHead(401, {
+      'Content-Type': 'application/json',
+      ...corsHeaders
+    });
     res.end(JSON.stringify({
       error: 'Unauthorized',
       message: 'Invalid or expired terminal session'
@@ -139,6 +212,11 @@ const server = http.createServer(async (req, res) => {
   }
 
   console.log('[AUTH] Session valid, proxying to ttyd');
+
+  // Set session cookie for subsequent requests (WebSocket, assets)
+  const cookieHeader = `terminal_session=${token}; Path=/; HttpOnly; SameSite=None; Secure; Max-Age=1800`;
+  res.setHeader('Set-Cookie', cookieHeader);
+
   proxy.web(req, res);
 });
 
@@ -149,7 +227,22 @@ server.on('upgrade', async (req, socket, head) => {
 
   console.log(`[UPGRADE] WebSocket - Token: ${token ? 'present' : 'missing'}`);
 
-  const isValid = await validateSession(token, authHeader);
+  // Check cached session first
+  let isValid = false;
+  const cachedSession = token ? sessionStore.get(token) : null;
+
+  if (cachedSession && cachedSession.validUntil > Date.now()) {
+    isValid = true;
+    console.log('[AUTH] WebSocket using cached session');
+  } else {
+    isValid = await validateSession(token, authHeader);
+    if (isValid && token) {
+      sessionStore.set(token, {
+        authHeader,
+        validUntil: Date.now() + 30 * 60 * 1000
+      });
+    }
+  }
 
   if (!isValid) {
     console.log('[AUTH] WebSocket session invalid');
